@@ -243,12 +243,14 @@ def render_filter_and_data_steps(
 
                 if st.button("Import data to NMF Tool"):
                     st.session_state["job_id"] = job_id
-                    st.session_state["meta"] = meta_df
+                    st.session_state["meta"] = meta_df.drop(columns=["Select"], errors="ignore")
                     st.session_state["metadata_index"] = "SampleName"
                     st.session_state["design_factor"] = "Group"
                     st.session_state["brb_data"] = True
                     st.session_state["gene_column"] = "Geneid"
                     st.session_state["active_page"] = "NMF for Bulk RNA"
+                    st.session_state["_go_to"] = "Preprocess Data for NMF"
+                    st.session_state["display_menu"] = True
                     st.rerun()
 
 

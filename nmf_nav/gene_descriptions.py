@@ -20,15 +20,22 @@ def run_gene_loadings():
     df = None
 
 
-    if "cnmf_gene_loadings" not in st.session_state and "gene_loadings" not in st.session_state:
+    nmf_available = st.session_state.get("gene_loadings") is not None
+    cnmf_available = st.session_state.get("cnmf_gene_loadings") is not None
+
+    if not nmf_available and not cnmf_available:
         st.warning("Please run one of the NMF algorithms to obtain gene loadings data")
     else:
-        if "cnmf_gene_loadings" in st.session_state and st.session_state["cnmf_gene_loadings"] is not None:
-            df = st.session_state["cnmf_gene_loadings"]
-        elif st.session_state["gene_loadings"] is not None:
+        options = []
+        if nmf_available:
+            options.append("NMF")
+        if cnmf_available:
+            options.append("cNMF")
+        source = st.radio("Select gene loadings source:", options, horizontal=True)
+        if source == "NMF":
             df = st.session_state["gene_loadings"]
         else:
-            st.subheader("Please, run any of the NMF algorithms to obtain gene loadings information before proceeding with this step")
+            df = st.session_state["cnmf_gene_loadings"]
 
 
         if df is not None:
@@ -40,7 +47,7 @@ def run_gene_loadings():
             st.subheader("Choose the top number of genes from each module")
             top_n = st.number_input("number of genes", 2, 5000, 20)
             buffer = io.BytesIO()
-            df.to_feather(buffer)   # write DataFrame into memory
+            df.reset_index().rename(columns={df.index.name or "index": "Module"}).to_feather(buffer)
             buffer.seek(0)          # rewind to start
             files = {"file": ("gene_loadings.feather", buffer, "application/octet-stream")}
             data = {

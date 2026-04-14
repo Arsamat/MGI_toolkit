@@ -164,6 +164,13 @@ def run_nmf():
         if st.session_state["display_loadings"]:
             st.subheader("NMF Gene Loadings")
             st.dataframe(st.session_state["gene_loadings"])
+            st.download_button(
+                "Download Gene Loadings CSV",
+                data=st.session_state["gene_loadings"].to_csv().encode(),
+                file_name="nmf_gene_loadings.csv",
+                mime="text/csv",
+                key="dl_loadings",
+            )
             st.button("Hide", key="hide_loadings_button", on_click=toggle_display, args=("display_loadings",))
         else:
             st.button("Show Gene Loadings", key="display_loadings_button", on_click=toggle_display, args=("display_loadings",))
@@ -172,6 +179,13 @@ def run_nmf():
         if st.session_state["display_scores"]:
             st.subheader("NMF Module Usage Scores")
             st.dataframe(st.session_state["module_usages"])
+            st.download_button(
+                "Download Module Usage Scores CSV",
+                data=st.session_state["module_usages"].to_csv().encode(),
+                file_name="nmf_module_usages.csv",
+                mime="text/csv",
+                key="dl_usages",
+            )
             st.button("Hide", key="hide_usages_button", on_click=toggle_display, args=("display_scores",))
         else:
             st.button("Show Usage Scores", "show_usages_button", on_click=toggle_display, args=("display_scores",))

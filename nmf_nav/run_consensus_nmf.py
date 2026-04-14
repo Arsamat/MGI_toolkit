@@ -294,7 +294,13 @@ def run_cnmf():
     if st.session_state.get("display_scores", False):
         st.subheader("Module Usage Matrix (W)")
         st.dataframe(st.session_state["cnmf_module_usages"])
-
+        st.download_button(
+            "Download Module Usage Scores CSV",
+            data=st.session_state["cnmf_module_usages"].to_csv().encode(),
+            file_name="cnmf_module_usages.csv",
+            mime="text/csv",
+            key="dl_cnmf_usages",
+        )
 
     if st.button("Show/Hide Gene Loadings"):
         toggle("display_loadings")
@@ -302,6 +308,13 @@ def run_cnmf():
     if st.session_state.get("display_loadings", False):
         st.subheader("Gene Loadings Matrix (H)")
         st.dataframe(st.session_state["cnmf_gene_loadings"])
+        st.download_button(
+            "Download Gene Loadings CSV",
+            data=st.session_state["cnmf_gene_loadings"].to_csv().encode(),
+            file_name="cnmf_gene_loadings.csv",
+            mime="text/csv",
+            key="dl_cnmf_loadings",
+        )
 
 
     # ================================================================
