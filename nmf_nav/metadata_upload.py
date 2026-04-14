@@ -14,7 +14,8 @@ def run_metadata_upload():
     if "design_factor" not in st.session_state:
         st.session_state["design_factor"] = None
 
-    st.session_state["LAMBDA_URL"] = "https://hc5ycktqbvxywpf4f4xhxfvm2e0dpozl.lambda-url.us-east-2.on.aws/"   # Function URL or API GW route               # EC2 FastAPI base
+    st.session_state["LAMBDA_URL"] = "https://hc5ycktqbvxywpf4f4xhxfvm2e0dpozl.lambda-url.us-east-2.on.aws/"
+    st.session_state.setdefault("API_URL", "http://18.218.84.81:8000/")
 
     HEALTH_URL = st.session_state["API_URL"] + "healthz"
     #---- session flags ----
@@ -86,18 +87,25 @@ def run_metadata_upload():
             
         st.dataframe(st.session_state["meta"])
         st.write("Please, provide the name of the column that stores sample names before proceeding. Use exactly the same name as in the file")
+        cols = st.session_state["meta"].columns.tolist()
+        preset_index = st.session_state.get("metadata_index")
+        sample_index = cols.index(preset_index) if preset_index in cols else 0
+        preset_design = st.session_state.get("design_factor")
+        design_index = cols.index(preset_design) if preset_design in cols else (1 if len(cols) > 1 else 0)
         sample_column = st.selectbox(
                 "Select the column that contains sample names:",
-                options=st.session_state["meta"].columns.tolist(),
-                index=0
+                options=cols,
+                index=sample_index,
             )
         st.session_state["design_factor"] = st.selectbox(
                 "Column name storing design group data",
-                options=st.session_state["meta"].columns.tolist(),
-                index=1
+                options=cols,
+                index=design_index,
             )
-            
-        if st.button("Save"):
+
+        if st.session_state.get("brb_data"):
+            st.session_state["metadata_index"] = sample_column
+        elif st.button("Save"):
             st.session_state["metadata_index"] = sample_column
     
     if st.session_state["metadata_index"] is not None:

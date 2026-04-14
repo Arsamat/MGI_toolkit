@@ -23,8 +23,7 @@ def run_preprocess_data():
         st.session_state["process_status"] = None
     if "result_queue" not in st.session_state:
         st.session_state["result_queue"] = queue.Queue()
-    # if "API_URL" not in st.session_state:
-    #     st.session_state["API_URL"] = "http://52.14.223.10:8000/"
+    st.session_state.setdefault("API_URL", "http://18.218.84.81:8000/")
     if "integer_format" not in st.session_state:
         st.session_state["integer_format"] = False
     if "display_menu" not in st.session_state:
@@ -154,7 +153,10 @@ def run_preprocess_data():
             #st.session_state["gene_column"] = st.text_input("Column name of the gene IDs in your count file", placeholder="Unnamed: 0")
            
             if "brb_data" not in st.session_state or not st.session_state["brb_data"]:
-                st.session_state["gene_column"] = st.text_input("Type in name of the column that stores gene names")
+                gene_col_input = st.text_input(
+                    "Type in name of the column that stores gene names. If the column has no name, leave this blank — it will default to 'Unnamed: 0'.",
+                )
+                st.session_state["gene_column"] = gene_col_input if gene_col_input.strip() else "Unnamed: 0"
 
             #st.session_state["single_cell"] = st.checkbox("Check if your data is single-cell data", key="single_cell_check", value=False)
             #st.write(st.session_state["single_cell"])
