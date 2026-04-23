@@ -4,6 +4,7 @@ import traceback
 import pandas as pd
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse
+from fastapi import HTTPException
 
 from nmf.spearman import run_spearman
 from nmf.nmf_utils import (
@@ -12,6 +13,7 @@ from nmf.nmf_utils import (
     run_cnmf_utils,
     run_regular_nmf_util,
     single_cell_util,
+    single_cell_async_util,
 )
 
 router = APIRouter(tags=["nmf"])
@@ -156,3 +158,48 @@ async def run_cnmf_single_cell(
         gene_column,
         gene_symbols,
     )
+
+
+@router.post("/cnmf_sc_submit")
+async def submit_cnmf_sc(
+    metadata: UploadFile,
+    k: int = Form(...),
+    hvg: int = Form(...),
+    design_factor: str = Form(...),
+    metadata_index: str = Form(...),
+    job_id: str = Form(...),
+    batch_correct: str = Form(""),
+    gene_column: str = Form(...),
+    gene_symbols: bool = Form(True),
+    email: str = Form(...),
+):
+    return await single_cell_async_util(
+        metadata, k, hvg, design_factor, metadata_index,
+        job_id, batch_correct, gene_column, gene_symbols, email,
+    )
+
+
+@router.get("/job_status/{sc_job_id}")
+def get_job_status(sc_job_id: str):
+    from infra.job_store import get_job
+    job = get_job(sc_job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"status": job["status"], "error": job.get("error")}
+
+
+@router.get("/job_results/{sc_job_id}")
+def get_job_results(sc_job_id: str):
+    from infra.job_store import get_job
+    from infra.s3_utils import s3, BUCKET
+    job = get_job(sc_job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job["status"] != "completed":
+        raise HTTPException(status_code=400, detail=f"Job is {job['status']}")
+    url = s3.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": BUCKET, "Key": job["s3_result_key"]},
+        ExpiresIn=600,
+    )
+    return {"download_url": url}

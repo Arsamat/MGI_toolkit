@@ -96,11 +96,11 @@ def cNMF_consensus(df, metadata, metadata_index, k=7, hvg=5000, max_iter=5000, d
     os.makedirs(os.path.dirname(save_base), exist_ok=True)    
     print(single_cell)  
     
-    if single_cell:
+    if single_cell and batch_vars:
         ann_obj = convert_ann_obj(df, metadata, metadata_index, batch_vars)
         p = Preprocess(random_seed=14)
 
-        #Batch correct the data and save the corrected high-variance gene data to adata_c, and the TPM normalized data to adata_tpm 
+        #Batch correct the data and save the corrected high-variance gene data to adata_c, and the TPM normalized data to adata_tpm
         (adata_c, adata_tpm, hvgs) = p.preprocess_for_cnmf(ann_obj, harmony_vars=batch_vars, makeplots=False, n_top_rna_genes = 2000, librarysize_targetsum= 1e6,
                                                             save_output_base=output_dir + '/batchcorrect')
 
@@ -111,7 +111,33 @@ def cNMF_consensus(df, metadata, metadata_index, k=7, hvg=5000, max_iter=5000, d
                                 genes_file=output_dir + '/batchcorrect.Corrected.HVGs.txt',
                                 components=components, n_iter=20, seed=14, num_highvar_genes=hvg)
 
-        cnmf_obj.factorize_multi_process(16)
+        workers = max(1, (os.cpu_count() or 2) // 2)
+        cnmf_obj.factorize_multi_process(workers)
+
+        # Stitch + consensus at chosen k
+        cnmf_obj.combine()
+        cnmf_obj.consensus(
+            k=int(k),
+            density_threshold=density_threshold,
+            show_clustering=False,
+            close_clustergram_fig=False,
+        )
+    elif single_cell:
+        # Single cell without batch correction — save raw counts as TSV (cells x genes)
+        sc_counts_tsv = os.path.join(out_dir, "sc_counts.tsv")
+        df.T.to_csv(sc_counts_tsv, sep="\t", index=True)
+
+        cnmf_obj = cNMF(output_dir=output_dir, name=run_name)
+        cnmf_obj.prepare(
+            counts_fn=sc_counts_tsv,
+            components=components,
+            n_iter=n_iter,
+            seed=seed,
+            num_highvar_genes=hvg,
+        )
+
+        workers = max(1, (os.cpu_count() or 2) // 2)
+        cnmf_obj.factorize_multi_process(workers)
 
         # Stitch + consensus at chosen k
         cnmf_obj.combine()
@@ -122,36 +148,20 @@ def cNMF_consensus(df, metadata, metadata_index, k=7, hvg=5000, max_iter=5000, d
             close_clustergram_fig=False,
         )
     else:
-        #Prepare once (parent)
+        #Prepare once (parent) — bulk RNA uses already-preprocessed data
         df.to_csv(counts_tsv, sep="\t", index=True)
         cnmf_obj = cNMF(output_dir=output_dir, name=run_name)
-        # cnmf_obj.prepare(
-        #     counts_fn=counts_tsv,
-        #     components=components,
-        #     n_iter=n_iter,
-        #     num_highvar_genes=hvg,
-        #     max_NMF_iter=max_iter,
-        #     seed=seed,
-        # )
-
         cnmf_obj.prepare_from_preprocessed(
             X=df,
             tpm=df,                     # if you don't have TPM, this is fine
             components=[k],
             n_iter=50,
             seed=0,
-            max_NMF_iter=max_iter
+            max_NMF_iter=max_iter,
         )
 
-        # Parallel factorize across processes
-        # with ProcessPoolExecutor(max_workers=total_workers) as ex:
-        #     futures = [
-        #         ex.submit(_factorize_worker, cnmf_obj, output_directory, run_name, i, total_workers)
-        #         for i in range(total_workers)
-        #     ]
-        #     for f in as_completed(futures):
-        #         f.result()  # raise if any worker failed
-        cnmf_obj.factorize_multi_process(16)
+        workers = max(1, (os.cpu_count() or 2) // 2)
+        cnmf_obj.factorize_multi_process(workers)
 
         # Stitch + consensus at chosen k
         cnmf_obj.combine()

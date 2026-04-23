@@ -12,6 +12,7 @@ import zipfile
 from fastapi import FastAPI, UploadFile, Form, File, BackgroundTasks, Request
 from fastapi.responses import FileResponse
 import os
+import sys
 from nmf.NMF import do_NMF
 import tempfile
 from nmf.cNMF import cNMF_consensus
@@ -27,6 +28,8 @@ import boto3
 from fastapi import HTTPException
 from pybiomart import Dataset
 import mygene
+import uuid
+import subprocess
 
 BUCKET = "nmf-tool-bucket"
 REGION = "us-east-2"
@@ -586,8 +589,9 @@ async def single_cell_util(
         #if sample_size < 500:
          #   save_heatmap_pdf_ordered(usages_path=usages_path, metadata=metadata, out_pdf = pdf_path, index=metadata_index)
          
-        module_usage_path = os.path.join(out_dir, "BatchCorrected", f"BatchCorrected.usages.k_{k}.dt_0_2.consensus.txt")
-        gene_zscore_path  = os.path.join(out_dir, "BatchCorrected", f"BatchCorrected.gene_spectra_score.k_{k}.dt_0_2.txt")
+        sc_run_name = "BatchCorrected" if batch_vars else "cNMF"
+        module_usage_path = os.path.join(out_dir, sc_run_name, f"{sc_run_name}.usages.k_{k}.dt_0_2.consensus.txt")
+        gene_zscore_path  = os.path.join(out_dir, sc_run_name, f"{sc_run_name}.gene_spectra_score.k_{k}.dt_0_2.txt")
 
         modules = pd.read_table(module_usage_path, nrows=20)
         print(modules)
@@ -617,4 +621,46 @@ async def single_cell_util(
     finally:
         print("Done:")
 
+
+# -------------------------------------------------------------------------
+# ASYNC SINGLE-CELL CNMF: background worker + submit util
+# -------------------------------------------------------------------------
+
+async def single_cell_async_util(metadata, k, hvg, design_factor, metadata_index,
+                                  job_id, batch_correct, gene_column, gene_symbols, email):
+    from infra.job_store import create_job
+
+    sc_job_id      = str(uuid.uuid4())
+    metadata_bytes = await metadata.read()
+
+    create_job(sc_job_id, email)
+
+    # Write metadata to a temp file so the subprocess can read it
+    meta_tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".tsv", prefix="meta_")
+    meta_tmp.write(metadata_bytes)
+    meta_tmp.close()
+
+    runner = os.path.join(os.path.dirname(__file__), "sc_job_runner.py")
+    log_path = f"/tmp/cnmf_{sc_job_id}.log"
+
+    cmd = [
+        sys.executable, runner,
+        "--sc_job_id",      sc_job_id,
+        "--job_id",         job_id,
+        "--k",              str(k),
+        "--hvg",            str(hvg),
+        "--design_factor",  design_factor,
+        "--metadata_index", metadata_index,
+        "--batch_vars",     batch_correct,   # empty string or comma-separated
+        "--gene_column",    gene_column,
+        "--gene_symbols",   str(gene_symbols),
+        "--email",          email,
+        "--metadata_path",  meta_tmp.name,
+    ]
+
+    with open(log_path, "w") as log_f:
+        subprocess.Popen(cmd, stdout=log_f, stderr=subprocess.STDOUT, close_fds=True)
+
+    print(f"[single_cell_async_util] Spawned job {sc_job_id}, log: {log_path}")
+    return JSONResponse({"sc_job_id": sc_job_id})
 
