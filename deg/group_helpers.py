@@ -176,13 +176,13 @@ def start_ec2_once():
     """Fire Lambda once to wake EC2. Idempotent: only runs if deg_ec2_start_triggered is False."""
     if st.session_state.get("deg_ec2_start_triggered"):
         return
+    st.session_state["deg_ec2_start_triggered"] = True
     try:
         requests.post(
             st.session_state["deg_lambda_url"],
             json={},
             timeout=10,
         )
-        st.session_state["deg_ec2_start_triggered"] = True
     except Exception as e:
         st.warning(f"Could not wake compute node: {e}")
 
